@@ -570,6 +570,7 @@ static int manager_init(apr_pool_t *p, apr_pool_t *plog,
     char *sessionid;
     char *domain;
     char *version;
+    char *filename
     version_data *base;
     void *data;
     const char *userdata_key = "mod_manager_init";
@@ -606,6 +607,19 @@ static int manager_init(apr_pool_t *p, apr_pool_t *plog,
         mconf->maxhost = mconf->maxnode;
     if (mconf->maxcontext < mconf->maxhost)
         mconf->maxcontext = mconf->maxhost;
+
+    filename = apr_pstrcat(p, node , ".lock", NULL);
+    if (apr_file_open(&nodes_global_lock, filename, APR_WRITE|APR_CREATE, APR_OS_DEFAULT, p) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,"manager_init: apr_file_open for lock failed");
+        return !OK;
+    }
+
+    filename = apr_pstrcat(p, context , ".lock", NULL);
+    if (apr_file_open(&contexts_global_lock, filename, APR_WRITE|APR_CREATE, APR_OS_DEFAULT, p) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,
+                    "manager_init: apr_file_open for lock failed");
+            return !OK;
+    }
 
     /* Get a provider to handle the shared memory */
     storage = ap_lookup_provider(SLOTMEM_STORAGE, "shared", "0");
