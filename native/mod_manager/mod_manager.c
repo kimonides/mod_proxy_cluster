@@ -570,7 +570,7 @@ static int manager_init(apr_pool_t *p, apr_pool_t *plog,
     char *sessionid;
     char *domain;
     char *version;
-    char *filename
+    char *filename;
     version_data *base;
     void *data;
     const char *userdata_key = "mod_manager_init";
@@ -3107,21 +3107,6 @@ static void  manager_child_init(apr_pool_t *p, server_rec *s)
         balancer = ap_server_root_relative(p, "logs/manager.balancer");
         sessionid = ap_server_root_relative(p, "logs/manager.sessionid");
     }
-
-    /* create the global node file look */
-    filename = apr_pstrcat(p, node , ".lock", NULL);
-    if (apr_file_open(&nodes_global_lock, filename, APR_WRITE|APR_CREATE, APR_OS_DEFAULT, p) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,
-                    "manager_child_init: apr_file_open for lock failed");
-        return;
-    }
-    filename = apr_pstrcat(p, context , ".lock", NULL);
-    if (apr_file_open(&contexts_global_lock, filename, APR_WRITE|APR_CREATE, APR_OS_DEFAULT, p) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,
-                    "manager_child_init: apr_file_open for lock failed");
-        return;
-    }
-
 
     nodestatsmem = get_mem_node(node, &mconf->maxnode, p, storage);
     if (nodestatsmem == NULL) {
