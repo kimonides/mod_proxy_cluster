@@ -570,7 +570,6 @@ static int manager_init(apr_pool_t *p, apr_pool_t *plog,
     char *sessionid;
     char *domain;
     char *version;
-    char *filename;
     version_data *base;
     void *data;
     const char *userdata_key = "mod_manager_init";
@@ -607,19 +606,6 @@ static int manager_init(apr_pool_t *p, apr_pool_t *plog,
         mconf->maxhost = mconf->maxnode;
     if (mconf->maxcontext < mconf->maxhost)
         mconf->maxcontext = mconf->maxhost;
-
-    filename = apr_pstrcat(p, node , ".lock", NULL);
-    if (apr_file_open(&nodes_global_lock, filename, APR_WRITE|APR_CREATE, APR_OS_DEFAULT, p) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,"manager_init: apr_file_open for lock failed");
-        return !OK;
-    }
-
-    filename = apr_pstrcat(p, context , ".lock", NULL);
-    if (apr_file_open(&contexts_global_lock, filename, APR_WRITE|APR_CREATE, APR_OS_DEFAULT, p) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,
-                    "manager_init: apr_file_open for lock failed");
-            return !OK;
-    }
 
     /* Get a provider to handle the shared memory */
     storage = ap_lookup_provider(SLOTMEM_STORAGE, "shared", "0");
@@ -672,10 +658,22 @@ static int manager_init(apr_pool_t *p, apr_pool_t *plog,
         return  !OK;
     }
 
-    if (is_child_process()) {
+    if (is_child_process()) 
+    {
         rv = apr_shm_attach(&versionipc_shm, (const char *) version, p);
-    } else {
-        rv = apr_shm_create(&versionipc_shm, sizeof(version_data), (const char *) version, p);
+    } 
+    else 
+    {
+        /* Use anonymous shm by default, fall back on name-based. */
+        rv = apr_shm_create(&versionipc_shm, sizeof(version_data), NULL, p);
+        if ( rv == APR_ENOTIMPL ) 
+        {
+            /* For a name-based segment, remove it first in case of a
+            * previous unclean shutdown. */
+            apr_shm_remove((const char *) version, p);
+            /* Now create that segment */
+            rv = apr_shm_create(&versionipc_shm, sizeof(version_data), (const char *) version, p);
+        }
     }
     if (rv != APR_SUCCESS) {
         ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, "create_share_version failed");
@@ -3073,6 +3071,7 @@ static void  manager_child_init(apr_pool_t *p, server_rec *s)
     char *host;
     char *balancer;
     char *sessionid;
+    char *filename;
     mod_manager_config *mconf = ap_get_module_config(s->module_config, &manager_module);
 
     if (storage == NULL) {
@@ -3106,6 +3105,21 @@ static void  manager_child_init(apr_pool_t *p, server_rec *s)
         balancer = ap_server_root_relative(p, "logs/manager.balancer");
         sessionid = ap_server_root_relative(p, "logs/manager.sessionid");
     }
+
+    /* create the global node file look */
+    filename = apr_pstrcat(p, node , ".lock", NULL);
+    if (apr_file_open(&nodes_global_lock, filename, APR_WRITE|APR_CREATE, APR_OS_DEFAULT, p) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,
+                    "manager_child_init: apr_file_open for lock failed");
+        return;
+    }
+    filename = apr_pstrcat(p, context , ".lock", NULL);
+    if (apr_file_open(&contexts_global_lock, filename, APR_WRITE|APR_CREATE, APR_OS_DEFAULT, p) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,
+                    "manager_child_init: apr_file_open for lock failed");
+        return;
+    }
+
 
     nodestatsmem = get_mem_node(node, &mconf->maxnode, p, storage);
     if (nodestatsmem == NULL) {
