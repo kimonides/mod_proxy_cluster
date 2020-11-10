@@ -3073,7 +3073,6 @@ static void  manager_child_init(apr_pool_t *p, server_rec *s)
     char *host;
     char *balancer;
     char *sessionid;
-    char *filename;
     mod_manager_config *mconf = ap_get_module_config(s->module_config, &manager_module);
 
     if (storage == NULL) {
